@@ -1,0 +1,5 @@
+{
+  "require": {
+    "understeam/yii2-fcm": "~0.2"
+  }
+}

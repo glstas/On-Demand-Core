@@ -10,6 +10,7 @@ namespace reinvently\ondemand\core\components\statemachine;
 use reinvently\ondemand\core\components\model\CoreModel;
 use reinvently\ondemand\core\components\statemachine\exceptions\StateTransitionException;
 use reinvently\ondemand\core\components\transport\ApiInterface;
+use reinvently\ondemand\core\modules\role\models\Role;
 use reinvently\ondemand\core\modules\stats\StatsInterface;
 use yii\db\StaleObjectException;
 
@@ -23,21 +24,21 @@ use yii\db\StaleObjectException;
  * @property int $v
  * @method string getColumnName() @see StateMachine
  * @method setStateName($name) @see StateMachine
- * @method transition(string $name, array $params = null) @see StateMachine
+ * @method bool transition(string $name, array $params = null) @see StateMachine
  * @method getApiState() @see StateMachine
  * @method getStateMachineError() @see StateMachine
  * @method getApiStateList() @see StateMachine
+ * @method State getState() @see StateMachine
+ * @method State getStateByName(string $name) @see StateMachine
  *
  */
 abstract class StateMachineModel extends CoreModel implements StatsInterface, ApiInterface
 {
 
-    abstract function getStateMachineParams();
+    /** @var Role */
+    public $roleModelClass = Role::class;
 
-    public function init()
-    {
-        $this->v = 0;
-    }
+    abstract public function getStateMachineParams();
 
     public function behaviors()
     {
@@ -62,6 +63,14 @@ abstract class StateMachineModel extends CoreModel implements StatsInterface, Ap
         return parent::beforeValidate();
     }
 
+    public function beforeSave($insert)
+    {
+        if ($insert) {
+            $this->v = 0;
+        }
+        return parent::beforeSave($insert);
+    }
+
     /**
      * @return int
      */
@@ -73,6 +82,7 @@ abstract class StateMachineModel extends CoreModel implements StatsInterface, Ap
     /**
      * @param int $status
      * @return bool
+     * @throws StateTransitionException
      */
     public function checkStatus($status)
     {
@@ -124,6 +134,6 @@ abstract class StateMachineModel extends CoreModel implements StatsInterface, Ap
 //        $o = new \stdClass();
 //        $o->$column = $this->$column;
 //        return $o;
-        return $this->getItemForApi();
+        return (object) $this->getItemForApi();
     }
 }

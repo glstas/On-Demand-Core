@@ -9,9 +9,12 @@
 namespace reinvently\ondemand\core\controllers\rest;
 
 
+use reinvently\ondemand\core\components\loggers\models\ExceptionLog;
 use reinvently\ondemand\core\components\statemachine\exceptions\InvalidStateException;
 use reinvently\ondemand\core\components\statemachine\exceptions\StateTransitionException;
 use reinvently\ondemand\core\exceptions\LogicException;
+use Yii;
+use yii\base\UserException;
 use yii\web\ConflictHttpException;
 use yii\web\ErrorHandler;
 use yii\web\HttpException;
@@ -25,10 +28,20 @@ class ApiErrorHandler extends ErrorHandler
      */
     protected function convertExceptionToArray($exception)
     {
-        return \Yii::$app->transport
-            ->responseException(
-                parent::convertExceptionToArray($exception)
-            );
+        if ($exception instanceof UserException) {
+            return Yii::$app->transport->responseMessage($exception->getMessage());
+        }
+
+        ExceptionLog::saveException($exception, true);
+
+        if (!YII_DEBUG && !$exception instanceof UserException && !$exception instanceof HttpException) {
+            $exception = new HttpException(500, Yii::t('app', 'Something went wrong please try again later'));
+        }
+
+        return Yii::$app->transport->responseException(
+            parent::convertExceptionToArray($exception)
+        );
+
     }
 
     /**
@@ -44,6 +57,7 @@ class ApiErrorHandler extends ErrorHandler
                 $exception = new ConflictHttpException($exception->getMessage(), 0, $exception);
             }
         }
+
         parent::renderException($exception);
     }
 } 

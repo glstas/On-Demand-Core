@@ -1,6 +1,6 @@
 <?php
 /**
- * @copyright Reinvently (c) 2017
+ * @copyright Reinvently (c) 2018
  * @link http://reinvently.com/
  * @license https://opensource.org/licenses/Apache-2.0 Apache License 2.0
  */
@@ -10,9 +10,12 @@ namespace reinvently\ondemand\core\modules\user\models;
 use reinvently\ondemand\core\components\model\CoreModel;
 use reinvently\ondemand\core\components\transport\ApiInterface;
 use reinvently\ondemand\core\components\transport\ApiTransportTrait;
+use reinvently\ondemand\core\exceptions\LogicException;
 use reinvently\ondemand\core\modules\role\models\Role;
+use reinvently\ondemand\core\modules\socialauth\models\Auth;
 use Yii;
 use yii\base\Exception;
+use yii\db\ActiveQuery;
 use yii\web\IdentityInterface;
 
 /**
@@ -28,7 +31,13 @@ use yii\web\IdentityInterface;
  * @property string $phone
  * @property int $createdAt
  * @property int $updatedAt
+ * @property string $language
  *
+ * @property User identity
+ *
+ * @method User getIdentity(bool $autoRenew)
+ *
+ * @property Auth[] auths
  */
 class User extends CoreModel implements IdentityInterface, ApiInterface
 {
@@ -38,6 +47,9 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
 
     /** @var Client */
     public static $clientModelClass = Client::class;
+
+    /** @var Role */
+    public static $RoleModelClass = Role::class;
 
     /** @var Client */
     public $currentClient;
@@ -71,7 +83,7 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
             ->where(['token' => $token])
             ->andWhere(['>=', 'expiredAt', time()])
             ->one();
-        if ($client) {
+        if ($client && $client->user) {
             $client->user->currentClient = $client;
             return $client->user;
         }
@@ -122,7 +134,7 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
 
     public static function tableName()
     {
-        return '{{%user}}';
+        return 'user';
     }
 
     /**
@@ -137,6 +149,7 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
             ['phone', 'unique'],
             ['password', 'string', 'min' => 6],
             [['firstName', 'lastName', 'phone'], 'string', 'max' => 25],
+            [['language'], 'string'],
             [['firstName', 'lastName'], 'safe'],
         ];
     }
@@ -152,6 +165,14 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
         return $scenarios;
     }
 
+    /**
+     * @return ActiveQuery
+     */
+    public function getAuths()
+    {
+        return $this->hasMany(Auth::className(), ['userId' => 'id']);
+    }
+
     public function attributeLabels()
     {
         return [
@@ -159,24 +180,12 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
         ];
     }
 
-    /*public function required($attribute, $params)
-    {
-        if (in_array($attribute, ['email', 'password'])) {
-
-        } else {
-            parent::required($attribute, $params);
-        }
-    }
-
-    public function myRequired($attribute, $params)
-    {
-        if (!$this->$attribute and $this->roleId != Role::GUEST) {
-            $this->addError($attribute, $attribute . ' cannot be blank.');
-        }
-    }*/
-
     public static function findByUsername($username)
     {
+        if (!$username) {
+            return null;
+        }
+
         return static::find()
             ->orWhere(['email' => $username])
             ->orWhere(['phone' => $username])
@@ -192,46 +201,57 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
     {
         if ($this->getIsNewRecord()) {
             $this->createdAt = time();
-            if ($this->password) {
-                $this->password = Yii::$app->getSecurity()->generatePasswordHash($this->password);
-            }
         }
-        $this->updatedAt = time();
+        if (!empty($this->getDirtyAttributes(['password']))) {
+            $this->password = Yii::$app->getSecurity()->generatePasswordHash($this->password);
+        }
+        if ($this->getDirtyAttributes()) {
+            $this->updatedAt = time();
+        }
         return parent::beforeSave($insert);
     }
 
     public function beforeValidate()
     {
         if (!$this->roleId) {
-            $this->roleId = Role::GUEST;
+            $this->roleId = Role::USER;
         }
 
         return parent::beforeValidate();
     }
 
-    public function generateAuthKey()
+    /**
+     * @param $uuid
+     * @return Client
+     * @throws LogicException
+     */
+    public function generateClientWithAuthKey($uuid = null)
     {
         if ($this->getIsNewRecord()) {
-            throw new Exception('User must be saved in database');
+            throw new LogicException('User must be saved in database');
         }
 
-        $this->authKey = $this->_generateAuthKey();
-        try {
-            $this->update(false, ['authKey']);
-        } catch (Exception $e) {
-            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062 /* ER_DUP_ENTRY */) {
-                $this->generateAuthKey();
-            } else {
-                throw $e;
+        $client = null;
+        if ($uuid) {
+            $client = Client::findActive($uuid, $this->id);
+        } else {
+            $uuid = Yii::$app->getSecurity()->generateRandomString(32);
+        }
+        if (!$client) {
+            // Create new Client
+            /** @var Client $client */
+            $client = new Client();
+            $client->userId = $this->id;
+            $client->uuid = $uuid;
+            $client->token = $client->generateToken();
+            $client->ip = Yii::$app->request->userIP;
+            if (!$client->save()) {
+                throw new LogicException('Client not saved');
             }
         }
-    }
 
-    private function _generateAuthKey()
-    {
-        return Yii::$app->getSecurity()->generateRandomString(32);
+        return $client;
     }
-
 
     /**
      * @return array
@@ -244,6 +264,7 @@ class User extends CoreModel implements IdentityInterface, ApiInterface
             'firstName' => $this->firstName,
             'lastName' => $this->lastName,
             'phone' => $this->phone,
+            'language' => $this->language,
         ];
     }
 

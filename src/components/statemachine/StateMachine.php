@@ -24,7 +24,7 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
     const EVENT_BEFORE_EXIT = 'BeforeExit';
     const EVENT_AFTER_ENTER = 'AfterEnter';
 
-    /** @var Component|StatsInterface */
+    /** @var yii\base\Component|StatsInterface|StateMachineModel */
     public $owner;
     public $defaultStateName = 'default';
     public $enableTransitionHistory = false;
@@ -69,7 +69,15 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
      */
     public function getState()
     {
-        $name = $this->getStateName();
+        return $this->getStateByName($this->getStateName());
+    }
+
+    /**
+     * @param string $name
+     * @return State|null
+     */
+    public function getStateByName($name)
+    {
         return isset($this->_states[$name]) ? $this->_states[$name] : null;
     }
 
@@ -110,11 +118,16 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
             if (!isset($state['transitsTo'])) {
                 $state['transitsTo'] = [];
             }
+            $label = null;
+            if (isset($state['label'])) {
+                $label = $state['label'];
+            }
 
             //Yii::createComponent($state, $state['name'], $this);
             $class = $state['class'];
             /** @var State $state */
             $state = new $class($state['name'], $this, $state['transitsTo']);
+            $state->setLabel($label);
 
             return $this->_states[$state->getName()] = $state;
 
@@ -249,7 +262,7 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
      */
     protected function beforeTransition(State $toState, $params = null)
     {
-        if (!$this->getState()->beforeExit($toState) || !$toState->beforeEnter()) {
+        if (!$this->getState()->beforeExit($toState, $params) || !$toState->beforeEnter($toState, $params)) {
             return false;
         }
 
@@ -257,7 +270,7 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
 //        $transition->from = $this->getState();
 //        $transition->to = $toState;
 //        /** @TODO raise transition event */
-        Yii::$app->eventManager->trigger(static::EVENT_BEFORE_EXIT, $this);
+        Yii::$app->eventManager->call(static::EVENT_BEFORE_EXIT, $this);
 
         return true;
     }
@@ -269,13 +282,13 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
     protected function afterTransition(State $fromState, $params = null)
     {
         $fromState->afterExit();
-        $this->getState()->afterEnter($fromState);
+        $this->getState()->afterEnter($fromState, $params);
 
 //        $transition = new StateTransition();
 //        $transition->from = $fromState;
 //        $transition->to = $this->getState();
 //        /** @TODO raise transition event */
-        Yii::$app->eventManager->trigger(static::EVENT_AFTER_ENTER, $this);
+        Yii::$app->eventManager->call(static::EVENT_AFTER_ENTER, $this);
 
     }
 
@@ -296,7 +309,7 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
             'defaultStateName' => $this->defaultStateName,
         ];
         foreach($this->_states as $state) {
-            $json['states'][] = $state->getName();
+            $json['states'][$state->getName()] = $state->getLabel();
             $json['stateMachine'][$state->getName()] = $state->getTransitsTo();
         }
         return $json;
@@ -322,7 +335,7 @@ class StateMachine extends Behavior implements StatsInterface, EventInterface
     }
 
     /**
-     * @return void|array Events list for ex. [Test2::RAISE_EVENT_TEST2];
+     * @return array Events list for ex. [Test2::RAISE_EVENT_TEST2];
      */
     public static function optionalTriggeredEvent()
     {

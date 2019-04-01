@@ -1,6 +1,6 @@
 <?php
 /**
- * @copyright Reinvently (c) 2017
+ * @copyright Reinvently (c) 2018
  * @link http://reinvently.com/
  * @license https://opensource.org/licenses/Apache-2.0 Apache License 2.0
  */
@@ -12,6 +12,7 @@ namespace reinvently\ondemand\core\modules\product\models;
 use reinvently\ondemand\core\components\model\CoreModel;
 use reinvently\ondemand\core\components\transport\ApiInterface;
 use reinvently\ondemand\core\components\transport\ApiTransportTrait;
+use reinvently\ondemand\core\modules\servicearea\models\ServiceArea;
 
 /**
  * Class Product
@@ -23,19 +24,24 @@ use reinvently\ondemand\core\components\transport\ApiTransportTrait;
  * @property int price
  * @property string title
  * @property string description
- * @property string image
+ * @property string $shortDescription
+ * @property boolean $isOneTimePay
+ * @property int $serviceAreaId
  *
+ * @property ServiceArea serviceArea
  */
 class Product extends CoreModel implements ApiInterface
 {
     use ApiTransportTrait;
+
+    public $serviceAreaModelClass = ServiceArea::class;
 
     /**
      * @return string
      */
     public static function tableName()
     {
-        return '{{%product}}';
+        return 'product';
     }
 
     /**
@@ -45,8 +51,11 @@ class Product extends CoreModel implements ApiInterface
     {
         return [
             [['title'], 'required'],
-            [['price', 'categoryId'], 'integer'],
-            [['categoryId', 'sort', 'description', 'image', 'price'], 'safe'],
+            [['price', 'categoryId', 'serviceAreaId'], 'integer'],
+            [['serviceAreaId', 'categoryId', 'sort', 'description', 'image', 'price'], 'safe'],
+            [['isOneTimePay'], 'boolean'],
+            [['title'], 'string', 'max' => 255],
+            [['shortDescription', 'description'], 'string', 'max' => 0xFFFE],
         ];
     }
 
@@ -59,6 +68,14 @@ class Product extends CoreModel implements ApiInterface
     }
 
     /**
+     * @return \yii\db\ActiveQuery
+     */
+    public function getServiceArea()
+    {
+        return $this->hasOne($this->serviceAreaModelClass, ['id' => 'serviceAreaId']);
+    }
+
+    /**
      * @return array
      */
     public function getItemForApi()
@@ -68,9 +85,11 @@ class Product extends CoreModel implements ApiInterface
             'categoryId' => $this->categoryId,
             'sort' => $this->sort,
             'title' => $this->title,
+            'shortDescription' => $this->shortDescription,
             'description' => $this->description,
-            'image' => $this->image,
             'price' => $this->price,
+            'isOneTimePay' => $this->isOneTimePay,
+            'serviceAreaId' => $this->serviceAreaId,
         ];
     }
 
@@ -79,13 +98,7 @@ class Product extends CoreModel implements ApiInterface
      */
     public function getItemShortForApi()
     {
-        return [
-            'id' => $this->id,
-            'sort' => $this->sort,
-            'title' => $this->title,
-            'image' => $this->image,
-            'price' => $this->price,
-        ];
+        return $this->getItemForApi();
     }
 
 }

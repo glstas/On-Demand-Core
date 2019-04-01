@@ -17,10 +17,10 @@ namespace reinvently\ondemand\core\modules\location\controllers;
 use reinvently\ondemand\core\controllers\rest\ApiTameController;
 use reinvently\ondemand\core\vendor\mapsdirections\addresses\AddressModel;
 use reinvently\ondemand\core\vendor\mapsdirections\addresses\GeoAddress;
-use reinvently\ondemand\core\vendor\mapsdirections\google\Directions;
-use reinvently\ondemand\core\vendor\mapsdirections\google\RequestParams;
 use reinvently\ondemand\core\vendor\mapsdirections\google\Response;
-use reinvently\ondemand\core\vendor\mapsdirections\google\Types;
+use yii\filters\VerbFilter;
+use yii\helpers\ArrayHelper;
+use yii\web\BadRequestHttpException;
 
 class ApiLocationToolController extends ApiTameController
 {
@@ -67,13 +67,13 @@ class ApiLocationToolController extends ApiTameController
     {
         $verbs = [
             'verbs' => [
-                'class' => \yii\filters\VerbFilter::className(),
+                'class' => VerbFilter::class,
                 'actions' => [
                     'distance-by-points' => ['get'],
                 ]
             ],
         ];
-        return array_merge_recursive($verbs, parent::behaviors());
+        return ArrayHelper::merge($verbs, parent::behaviors());
     }
 
 }

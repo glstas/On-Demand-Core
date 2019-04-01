@@ -1,6 +1,6 @@
 <?php
 /**
- * @copyright Reinvently (c) 2017
+ * @copyright Reinvently (c) 2018
  * @link http://reinvently.com/
  * @license https://opensource.org/licenses/Apache-2.0 Apache License 2.0
  */
@@ -20,11 +20,14 @@ class ProductTableMigration extends Migration
             'id' => $this->integer() . ' UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
             'title' => $this->string(),
             'description' => $this->text(),
-            'image' => $this->string(),
             'categoryId' => $this->integer() . ' UNSIGNED',
             'sort' => $this->integer() . ' UNSIGNED',
             'price' => $this->integer() . ' UNSIGNED',
+            'serviceAreaId' => $this->integer()->unsigned(),
         ], 'ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci');
+
+        $this->addColumn('product', 'shortDescription', $this->string());
+        $this->addColumn('product', 'isOneTimePay', $this->boolean());
 
         $this->createIndex('categoryId', 'product', 'categoryId');
         $this->createIndex('sort', 'product', 'sort');

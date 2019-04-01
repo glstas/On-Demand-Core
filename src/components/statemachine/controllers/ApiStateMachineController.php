@@ -8,10 +8,12 @@
 namespace reinvently\ondemand\core\components\statemachine\controllers;
 
 use reinvently\ondemand\core\components\statemachine\StateMachineModel;
+use reinvently\ondemand\core\controllers\rest\ApiController;
 use Yii;
+use yii\helpers\ArrayHelper;
 use yii\web\HttpException;
 
-abstract class ApiStateMachineController extends \reinvently\ondemand\core\controllers\rest\ApiController
+abstract class ApiStateMachineController extends ApiController
 {
     /**
      * @return StateMachineModel
@@ -22,14 +24,14 @@ abstract class ApiStateMachineController extends \reinvently\ondemand\core\contr
     {
         $verbs = [
             'verbs' => [
-                'class' => \yii\filters\VerbFilter::className(),
+                'class' => \yii\filters\VerbFilter::class,
                 'actions' => [
                     'state' => ['get', 'post'],
                     'state-list' => ['get'],
                 ]
             ],
         ];
-        return array_merge_recursive($verbs, parent::behaviors());
+        return ArrayHelper::merge($verbs, parent::behaviors());
     }
 
     public function actionState()
@@ -57,7 +59,7 @@ abstract class ApiStateMachineController extends \reinvently\ondemand\core\contr
                     \Yii::$app->response->setStatusCode(404);
                     return $this->getTransport()->responseMessage('Object not found');
                 }
-                if ($object->transition($state)) {
+                if ($object->transition($state, ['user' => $this->getUser()])) {
                     return $this->getTransport()->responseScalar();
                 } else {
                     return $this->getTransport()->responseMessage($object->getStateMachineError());
